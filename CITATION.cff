@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite it as below."
+title: "ct-findings-typed-decision-benchmark"
+type: software
+authors:
+  - name: "Shiga University of Medical Science"
+license: MIT
+repository-code: "https://github.com/shiga-med/ct-findings-typed-decision-benchmark"
+version: "1.0.0"
+date-released: "2026-11-12"

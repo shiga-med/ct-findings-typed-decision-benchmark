@@ -1,0 +1,54 @@
+# Source datasets. Files are downloaded to <data>/<local path> and checked by SHA-256.
+sources:
+  ct-rate:
+    repo: ibrahimhamamci/CT-RATE        # gated: accept the terms on Hugging Face first
+    revision: deeca4d89e9f978d4d1bccd88a55071ddbb146bb
+    license: CC BY-NC-SA 4.0
+    files:
+      dataset/radiology_text_reports/train_reports.csv: e885df178fab09dfe7a0f2bdba121d5a4efe0c89d13db6f341a3bb3f8105ada7
+      dataset/radiology_text_reports/validation_reports.csv: e0538498de92e19b3bb6b70643d5c78edda146e4f480f159825202bf78ed4620
+      dataset/multi_abnormality_labels/train_predicted_labels.csv: 589a14d5feaa87590b1d1174a7ac86a79bb5162bbb311549d44618e2dfde59ea
+      dataset/multi_abnormality_labels/valid_predicted_labels.csv: 2356c549da0398dd8bc8d8b007fc78c5c4e489d8b54049b8bbc122a11d429b22
+  ct-rate-jpn:
+    repo: YYama0/CT-RATE-JPN
+    revision: 41d80fdb5ac2c60cd1210fc1bfd0e9704373366b
+    license: CC BY-NC-SA 4.0
+    files:
+      train_reports_ja.csv: ce0ac078d11c71a7e67de8931d84d2138a9158018b6f7414810cda019e95dace
+      valid_reports_ja.csv: 2ca40008a280139e9f45dd29ae2538f384541919e9eda9693aaee1d7a2420957
+  rr-findings:
+    repo: YYama0/RR-Findings
+    revision: 0911b3061b0767f57c68e3095fde7d3bcd07e401
+    license: CC BY 4.0
+    files:
+      RR-Findings.csv: 1664ccf0b870c6a9c5d4c861e40cee8c6f9c8e6f54f32fb42e00725b506723d2
+
+# Counts checked after preparation; any difference stops the run.
+audit:
+  train_pool_cases: 22716
+  train_representative_patients: 18777
+  test_cases: 1521
+  test_source_patients: 1304
+  paired_test_cases: 150
+  excluded_missing: 16
+  excluded_leak: 46
+  train_cases: 20444
+  development_cases: 2272
+  external_reports: 243
+
+split:
+  seed: 42                 # component permutation
+  development_fraction: 0.1
+  dev450_size: 450         # sorted case IDs, random.Random(42).sample
+  dev450_seed: 42
+  few_shot_count: 8        # sorted training IDs, random.Random(42).sample
+  few_shot_seed: 42
+  few_shot_ids:            # expected result (checked by prepare)
+    - train_13230_a_1.nii.gz
+    - train_10744_m_1.nii.gz
+    - train_18013_b_1.nii.gz
+    - train_17119_a_1.nii.gz
+    - train_16492_a_1.nii.gz
+    - train_14054_a_1.nii.gz
+    - train_12957_a_1.nii.gz
+    - train_7761_a_1.nii.gz

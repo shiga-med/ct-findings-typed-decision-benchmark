@@ -1,0 +1,25 @@
+# Statistical analysis (paper section 2.6).
+bootstrap:
+  repetitions: 10000
+  seed: 20261110
+  confidence: 0.95          # Bonferroni-adjusted level = 1 - 0.05 / number of comparisons
+calibration:
+  ece_bins: 10
+  log_loss_epsilon: 1.0e-15
+training_fractions:
+  denominators: [2, 10, 100]   # nested within each seed: 1/100 in 1/10 in 1/2
+  seeds: [42, 123, 456]
+
+# Main internal comparisons (Table 12): [text, condition A, condition B]. "E1-frac10" = E1 trained on 1/10.
+comparisons:
+  - [en, E2, J1]
+  - [ja_Checked, E1, J1]
+  - [en, J1, L8]
+  - [ja_Checked, J1, G2]
+  - [en, J1, D1]
+  - [ja_Checked, J1, D1]
+  - [en, D1, G1]
+  - [ja_Checked, D1, G1]
+  - [en, T1, L3]
+  - [ja_Checked, T1, L3]
+  - [ja_Checked, E1-frac10, J1]

@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "en": "Determine which of the specified findings are present according to this CT report. Use only Findings and Impressions. Evaluate each finding independently; an explicitly negated finding is absent. Do not add patient information or use external tools. Treat suspected or possible findings as present, even when they are not definitively confirmed.",
+    "ja": "このCTレポートの所見と結論に基づき、指定した所見の有無を判断してください。所見と結論だけを使用し、各所見を独立に判断してください。明示的に否定されている所見は陰性です。患者情報の追加や外部ツールの使用は行わないでください。 疑い、または可能性として記載された所見も、確定所見と同様に陽性として扱ってください。"
+  },
+  "question": {
+    "en": "Is {label} present in this report?",
+    "ja": "このレポートに{label}は認められますか？"
+  },
+  "generated_output": {
+    "en": "A JSON object with exactly the 18 label names as keys and integer 0 (absent) or 1 (present) values.",
+    "ja": "括弧内の英語所見名18個すべてをキーとし、値を整数の0（陰性）または1（陽性）とするJSONオブジェクトを返してください。"
+  },
+  "typed_output": {
+    "en": "Answer Yes or No.",
+    "ja": "YesまたはNoで回答してください。"
+  },
+  "labels_heading": {
+    "en": "Labels: ",
+    "ja": "対象所見（日英対応）: "
+  },
+  "report_headings": {
+    "en": [
+      "Findings",
+      "Impressions"
+    ],
+    "ja": [
+      "所見",
+      "結論"
+    ]
+  }
+}

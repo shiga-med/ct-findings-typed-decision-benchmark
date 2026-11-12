@@ -1,0 +1,53 @@
+# All conditions of the paper (Table 1). "runs" = repeated runs (or training seeds for encoders).
+# Input to every condition: Findings + Impressions of one report; the same 18 findings.
+
+encoder_training:
+  learning_rates: [1.0e-5, 2.0e-5, 3.0e-5]
+  seeds: [42, 123, 456]
+  max_epochs: 5
+  batch_size: 1
+  gradient_accumulation: 8   # effective batch 8
+  bf16: true
+  max_length: 8192           # no truncation; longer reports stop the run
+
+local_runtime:               # vLLM 0.31.0, OpenAI-compatible server
+  max_output_tokens: 8192
+  context_length: 16384
+  min_output_tokens_per_second: 10   # request timeout = max_tokens / rate + overhead
+  request_overhead_seconds: 120
+
+conditions:
+  E1: {family: encoder, languages: [en, ja], runs: 3,
+       model: {en: thomas-sounack/BioClinical-ModernBERT-base, ja: sbintuitions/modernbert-ja-130m},
+       revision: {en: c3648aa87af95837c809e6f0c5f85d08160db437, ja: 28c180b16463ba6f3fa79b48756fbf21586fe23e}}
+  E2: {family: encoder, languages: [en], runs: 3,
+       model: {en: thomas-sounack/BioClinical-ModernBERT-large},
+       revision: {en: c684f470c2ee60531d8c47c32187dba746c84201}}
+  G1: {family: openai, languages: [en, ja], runs: 3, model: gpt-6-luna, few_shot: false, reasoning_effort: none}
+  G2: {family: openai, languages: [en, ja], runs: 3, model: gpt-6-luna, few_shot: true, reasoning_effort: none}
+  G3: {family: openai, languages: [en, ja], runs: 3, model: gpt-6-luna, few_shot: false, reasoning_effort: medium}
+  G4: {family: openai, languages: [en, ja], runs: 3, model: gpt-6-luna, few_shot: true, reasoning_effort: medium}
+  L3: &qwen_no_think
+      {family: local, languages: [en, ja], runs: 3, model: Qwen/Qwen3.8-27B,
+       revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0, few_shot: false,
+       sampling: {enable_thinking: false, temperature: 0.7, top_p: 0.8, top_k: 20, min_p: 0.0,
+                  presence_penalty: 1.5, repetition_penalty: 1.0}}
+  L4: {<<: *qwen_no_think, few_shot: true}
+  L7: &qwen_think
+      {family: local, languages: [en, ja], runs: 3, model: Qwen/Qwen3.8-27B,
+       revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0, few_shot: false,
+       sampling: {enable_thinking: true, reasoning_effort: medium, temperature: 1.0, top_p: 0.95,
+                  top_k: 20, min_p: 0.0, presence_penalty: 0.0, repetition_penalty: 1.0}}
+  L8: {<<: *qwen_think, few_shot: true}
+  M1: &medgemma
+      {family: local, languages: [en], runs: 3, model: google/medgemma-27b-text-it,
+       revision: 5b667cf2ddcf064085bc90952edb35a0edbfb79c, few_shot: false,
+       sampling: {temperature: 0}}
+  M2: {<<: *medgemma, few_shot: true}
+  J1: {family: jev, languages: [en, ja], runs: 3, model: jev-1.14.0}       # 18 questions in one request
+  D1: {family: decisions, languages: [en, ja], runs: 1, model: gpt-6-luna}  # 18 predicates in one request
+  T1: {family: typed, languages: [en, ja], runs: 3, model: Qwen/Qwen3.8-27B,
+       revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0}                  # Yes/No probability, one request per finding
+
+# External test (RR-Findings, Japanese reports)
+external: [J1, D1, G1, L3, L7, T1, E1]
