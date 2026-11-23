@@ -27,6 +27,8 @@ def make_predictor(name, condition, config, endpoint=None, seed_salt=None):
         return P.Jev(condition)
     if family == "decisions":
         return P.Decisions(condition)
+    if family == "gemini":
+        return P.GeminiDecisions(condition)
     runtime = load_yaml(Path(config) / "conditions.yaml")["local_runtime"]
     if not endpoint:
         raise PermissionError(f"{name} needs --endpoint (URL of the vLLM server)")
@@ -54,8 +56,9 @@ def predict(work, config, name, language, text, set_name, run, *, endpoint=None,
     done = {r["case_id"] for r in read_jsonl(path)} if path.exists() else set()
     todo = [c for c in cases if c["case_id"] not in done]
     if predictor is None:
-        if not dry_run and condition["family"] in ("openai", "jev", "decisions"):
-            P.require_env({"jev": "TYPESAFE_API_KEY"}.get(condition["family"], "OPENAI_API_KEY"))
+        if not dry_run and condition["family"] in ("openai", "jev", "decisions", "gemini"):
+            P.require_env({"jev": "TYPESAFE_API_KEY", "gemini": "GEMINI_API_KEY"}.get(
+                condition["family"], "OPENAI_API_KEY"))
         predictor = make_predictor(name, condition, config, endpoint, seed_salt)
     if dry_run:
         first = P.build_requests(predictor, todo[0], text, language, labels, ja_names, prompt,
@@ -79,6 +82,9 @@ def predict(work, config, name, language, text, set_name, run, *, endpoint=None,
             row = {"status": "failed", "predictions": [None] * len(labels), "probabilities": None,
                    "requests": 2, "input_tokens": None, "output_tokens": None, "model": None,
                    "error": error}
+        if condition["family"] == "gemini":
+            row["requests"] = attempts
+            row["usage_incomplete"] = attempts > 1 or row["status"] == "failed"
         row = {"case_id": case["case_id"], **row, "attempts": attempts,
                "seconds": time.monotonic() - started}
         with path.open("a", encoding="utf-8") as fh:

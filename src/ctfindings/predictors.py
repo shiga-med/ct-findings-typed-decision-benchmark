@@ -238,6 +238,60 @@ class Decisions:
         return from_probabilities(probabilities, raw.get("usage") or {}, raw.get("model"))
 
 
+class GeminiDecisions:
+    """Gemini Decisions: 18 independent Noul questions in one request (GD1)."""
+    env = "GEMINI_API_KEY"
+
+    def __init__(self, condition, client=None):
+        self.condition, self.client = condition, client
+
+    def request(self, state, questions):
+        return {"model": self.condition["model"], "input": state,
+                "questions": {f"finding_{i}": {"type": "noul", "instructions": q}
+                              for i, q in enumerate(questions.values())}}
+
+    def __call__(self, body, labels):
+        if self.client is None:
+            from google import genai
+            require_env(self.env)
+            self.client = genai.Client(
+                api_key=os.environ[self.env], vertexai=False,
+                http_options={"api_version": self.condition.get("api_version", "v1beta"),
+                              "timeout": 120000, "retry_options": {"attempts": 1}})
+        with self.client.decisions.with_raw_response.create(**body) as response:
+            content = response.text()
+
+        def unique_object(pairs):
+            if len({key for key, _ in pairs}) != len(pairs):
+                raise ValueError("Duplicate response key")
+            return dict(pairs)
+
+        probabilities, usage, model = [None] * len(labels), {}, None
+        try:
+            raw = json.loads(content, object_pairs_hook=unique_object)
+        except (TypeError, ValueError):
+            raw = None
+        if isinstance(raw, dict):
+            if isinstance(raw.get("usage"), dict):
+                for field in ("input_tokens", "output_tokens"):
+                    value = raw["usage"].get("total_" + field)
+                    usage[field] = value if type(value) is int and value >= 0 else None
+            version = raw.get("model_version")
+            model = version if isinstance(version, str) and version else None
+            answers = raw.get("answers")
+            ids = [f"finding_{i}" for i in range(len(labels))]
+            if (not raw.get("prompt_feedback") and isinstance(answers, dict)
+                    and not set(answers) - set(ids)):
+                for i, qid in enumerate(ids):
+                    answer = answers.get(qid)
+                    if isinstance(answer, dict) and answer.get("type") == "noul":
+                        probabilities[i] = valid_probability(answer.get("noul"))
+        out = from_probabilities(probabilities, usage, model)
+        out["requested_model"] = body["model"]
+        out["response_model_version_status"] = "provided" if model else "not_provided"
+        return out
+
+
 class TypedQwen:
     """Typed decision on Qwen: first-token Yes/No probability, one request per finding (T1).
 

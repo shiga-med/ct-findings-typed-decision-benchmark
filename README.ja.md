@@ -26,12 +26,12 @@ Yes/No質問に確率を返す方式）を比べた研究のコードです。�
 
 ```bash
 uv sync --locked                 # 解析のみ（予測から表を作る）
-uv sync --locked --group api     # Jev、Decisions API、OpenAI生成も使う
+uv sync --locked --group api     # Jev、Decisions API、Gemini Decisions、OpenAI生成も使う
 uv sync --locked --group train   # エンコーダーとQwen型付き判断（T1）も使う（Linux＋NVIDIA GPU）
 cp .env.example .env             # 必要なキーを記入
 ```
 
-キーは環境変数か`.env`からだけ読みます：`OPENAI_API_KEY`、`TYPESAFE_API_KEY`、`HF_TOKEN`（CT-RATEの取得）。
+キーは環境変数か`.env`からだけ読みます：`OPENAI_API_KEY`、`TYPESAFE_API_KEY`、`GEMINI_API_KEY`（Gemini Decisions）、`HF_TOKEN`（CT-RATEの取得）。
 
 ## 手順
 
@@ -39,11 +39,13 @@ cp .env.example .env             # 必要なキーを記入
 # 1. 取得・照合（SHA-256と監査件数）・分割
 uv run ctfindings prepare
 
-# 2a. エンコーダー（GPU）：学習率3×seed 3、閾値、評価データの予測
+# 2a. エンコーダー（GPU）：学習率3×seed 42、閾値、評価データの予測
 uv run ctfindings train --condition E1 --language ja
 uv run ctfindings train --condition E1 --language ja --fraction 10     # 学習データ量（1/2・1/10・1/100）
+#     論文は3つのseedを用いた。再現するときは --seed 42 123 456 を加える
 
-# 2b. その他の条件：まず--dry-runで確認（何も送信しない）
+# 2b. その他の条件：各1回（--run 1）。まず--dry-runで確認（何も送信しない）
+#     論文では一部の条件を3回実行した。同様にするときは --run 2・--run 3 も実行する
 uv run ctfindings predict --condition J1 --language ja --text ja_Checked --set test150 --run 1 --dry-run
 uv run ctfindings predict --condition J1 --language ja --text ja_Checked --set test150 --run 1
 
@@ -72,11 +74,35 @@ uv run ctfindings tables
 
 ## 再現性
 
-- 著者の保存予測を入力すると、`evaluate`と`tables`は表2〜9・11〜14の値を完全に再現します
-  （表11のDecisions APIの2行は、予測を保存していない初回との比較のため除く）。
-  `prepare`は論文と同じ分割を作ります。
-- APIモデルとサンプリングを伴うローカル生成は、新しく実行すると論文の値と一致しません。
-  APIのモデル版は提供終了する場合があります。公開にあたり有料API・GPUでの再実行は行っていません。
+- 1.1.0ではGemini Decisions（`GD1`、`gemini-decision-1`）と第2版の15比較を追加しています。
+  AP・mAPは同率確率をまとめて計算し、同率の症例順に依存しません。
+- 保存済み予測を使ってオフラインで照合します。今回、有料APIの再送・GPU学習は行っていません。
+  API・サンプリングを伴うローカル生成の再実行は論文と一致するとは限らず、モデル版が終了する場合もあります。
+- 出力名は互換性のため旧表番号を維持します。第2版では内部・外部CSVが本文表2〜3・補足S2〜S4、
+  `table12_comparisons.csv`が本文表4（15比較、95%・99.6667%区間）に対応します。
+  校正・効率・実行変動・所見別・閾値取り直しは対応する補足表へ使います。Geminiの外部閾値取り直しは出力しません。
+
+## Gemini Decisions
+
+`uv sync --locked --group api`で準備し、`GEMINI_API_KEY`を設定します。
+SDKは`google-genai==3.6.1`、APIは`v1beta`です。共通18質問を`finding_0`〜`finding_17`に対応させ、
+1要求で送信します。応答に実際の`model_version`がなければ版は不明として記録します。
+
+```bash
+# まず送信なしで確認し、実送信するときだけ--dry-runを外す
+uv run ctfindings predict --condition GD1 --language en --text en --set dev450 --run 1 --dry-run
+uv run ctfindings predict --condition GD1 --language ja --text ja_MT --set dev450 --run 1 --dry-run
+# 開発の実送信が終わってから初回閾値を固定する
+uv run ctfindings thresholds --condition GD1 --language en
+uv run ctfindings thresholds --condition GD1 --language ja
+uv run ctfindings predict --condition GD1 --language ja --text ja_Checked --set test150 --run 1 --dry-run
+```
+
+内部の`en`・`ja_MT`・`ja_Revised`・`ja_Checked`（`test150`）と日本語外部（`external`）を、
+開発集合で定めた閾値で各1回（`--run 1`）実行します。Decisions API（`D1`）と同じく1回の実行です。
+
+要求時間は失敗試行を含みます。失敗試行などのトークン使用量が不明なら、ゼロにせず空欄にします。
+応答版・基盤モデルの派生が不明な場合、要求モデル名から推測しません。
 
 ## 試験
 

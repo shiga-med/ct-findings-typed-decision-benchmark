@@ -215,8 +215,12 @@ def efficiency(pops):
         total = {k: sum(r.get(k) or 0 for r in u) for k in ("requests", "input_tokens",
                                                             "output_tokens", "seconds")}
         rows.append({**dict(zip(GROUP, key)), "run": pop["run"], "requests": total["requests"],
-                     "input_tokens_per_report": total["input_tokens"] / n,
-                     "output_tokens_per_report": total["output_tokens"] / n,
+                     "input_tokens_per_report": (total["input_tokens"] / n if all(
+                         r.get("input_tokens") is not None and not r.get("usage_incomplete")
+                         for r in u) else ""),
+                     "output_tokens_per_report": (total["output_tokens"] / n if all(
+                         r.get("output_tokens") is not None and not r.get("usage_incomplete")
+                         for r in u) else ""),
                      "seconds_per_report": total["seconds"] / n})
     return rows
 
@@ -273,7 +277,8 @@ def refit(pops):
     """Table 14 (post hoc, upper bound): thresholds re-estimated on the external set itself."""
     per_run = []
     for pop in pops:
-        if pop["set"] != "external" or pop["p"] is None or fraction(pop["condition"]):
+        if (pop["set"] != "external" or pop["p"] is None or fraction(pop["condition"])
+                or pop["condition"] == "GD1"):
             continue
         if np.isnan(pop["p"]).any():
             raise DataError(f"Missing probabilities: {pop['condition']} {pop['run']}")

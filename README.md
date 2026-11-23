@@ -28,13 +28,13 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.12.
 
 ```bash
 uv sync --locked                 # analysis only (tables from predictions)
-uv sync --locked --group api     # + Jev, Decisions API, OpenAI generation
+uv sync --locked --group api     # + Jev, Decisions API, Gemini Decisions, OpenAI generation
 uv sync --locked --group train   # + encoders and the Qwen typed decision (T1); Linux + NVIDIA GPU
 cp .env.example .env             # then fill in the keys you need
 ```
 
 Keys are read only from the environment or `.env`: `OPENAI_API_KEY`, `TYPESAFE_API_KEY`,
-`HF_TOKEN` (CT-RATE download).
+`GEMINI_API_KEY` (Gemini Decisions), `HF_TOKEN` (CT-RATE download).
 
 ## Steps
 
@@ -42,11 +42,13 @@ Keys are read only from the environment or `.env`: `OPENAI_API_KEY`, `TYPESAFE_A
 # 1. Download, check (SHA-256 and audited counts) and split
 uv run ctfindings prepare
 
-# 2a. Encoders (GPU): 3 learning rates x 3 seeds, thresholds and test predictions
+# 2a. Encoders (GPU): 3 learning rates x seed 42, thresholds and test predictions
 uv run ctfindings train --condition E1 --language ja
 uv run ctfindings train --condition E1 --language ja --fraction 10     # training-data size (1/2, 1/10, 1/100)
+#     The paper used three seeds; add them to reproduce it: --seed 42 123 456
 
-# 2b. Other conditions: always check with --dry-run first (nothing is sent)
+# 2b. Other conditions, once each (--run 1): always check with --dry-run first (nothing is sent).
+#     The paper repeated several conditions three times; add --run 2 and --run 3 to do so.
 uv run ctfindings predict --condition J1 --language ja --text ja_Checked --set test150 --run 1 --dry-run
 uv run ctfindings predict --condition J1 --language ja --text ja_Checked --set test150 --run 1
 
@@ -104,13 +106,43 @@ VLLM_USE_FLASHINFER_SAMPLER=0 vllm serve $MODEL --revision $REV --tokenizer-revi
 
 ## Reproducibility notes
 
-- From the authors' saved predictions, `evaluate` and `tables` reproduce every value of
-  Tables 2-9 and 11-14 exactly, except the two Decisions API rows of Table 11 (they compare
-  with a first run whose predictions were not saved). `prepare` reproduces the published splits.
-- New runs of API models and sampled local generation will differ from the paper, and API
-  model versions may be retired. Runs on paid APIs and GPUs were not repeated for this release.
-- Thresholds are set on the development set only. Table 14 uses the test data and is an
-  upper bound, not a valid estimate.
+- Version 1.1.0 adds Gemini Decisions (`GD1`, `gemini-decision-1`) and the second
+  manuscript's 15 paired comparisons. AP/mAP groups tied probabilities at each distinct
+  score threshold, so changing the order of tied observations cannot change the result.
+- API and sampled local-model runs may differ from the paper; service versions may be
+  retired. This release is checked offline against stored predictions, not by new paid
+  API calls or GPU training. The authors' predictions are not distributed here.
+- Output filenames retain the original table numbering for compatibility. For manuscript version 2:
+  `table02_03_internal.csv` and `table04_external.csv` supply Tables 2–3 and S2–S4;
+  `table12_comparisons.csv` supplies Table 4 (15 comparisons, 95% and 99.6667% intervals);
+  calibration, efficiency, variability, findings and refit files supply the corresponding
+  supplementary tables. No external-threshold refit is produced for Gemini.
+
+### Gemini Decisions
+
+Use `uv sync --locked --group api` and set `GEMINI_API_KEY`. The SDK is pinned to
+`google-genai==3.6.1`, API `v1beta`. Each request sends the same 18 clinical questions
+as Jev, keyed as `finding_0` through `finding_17`. No text-generation fallback is used.
+Only an actual `model_version` response field is recorded as the response version;
+its absence is recorded as unknown.
+
+```bash
+# Dry run first. Then remove --dry-run to send the development requests.
+uv run ctfindings predict --condition GD1 --language en --text en --set dev450 --run 1 --dry-run
+uv run ctfindings predict --condition GD1 --language ja --text ja_MT --set dev450 --run 1 --dry-run
+# After both development runs finish:
+uv run ctfindings thresholds --condition GD1 --language en
+uv run ctfindings thresholds --condition GD1 --language ja
+# Evaluate with those first-run thresholds (example; also run each of the other texts below):
+uv run ctfindings predict --condition GD1 --language ja --text ja_Checked --set test150 --run 1 --dry-run
+```
+
+Run `test150` for `en`, `ja_MT`, `ja_Revised` and `ja_Checked`, and `external` for Japanese,
+once each (`--run 1`) with the development thresholds, as for the Decisions API (`D1`).
+
+Request time includes failed attempts. Token usage is left blank when an attempt's usage
+is unknown, rather than counted as zero. The model's response version and base-model
+variant may be unavailable; do not infer them from the requested model name.
 
 ## Resources
 

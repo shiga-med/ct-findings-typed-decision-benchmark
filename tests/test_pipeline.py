@@ -145,3 +145,44 @@ def test_evaluate_and_tables(project):
     assert t1 == optimize([c["labels"] for c in dev], [r["probabilities"] for r in rows])[0]
     assert len(tables.read_csv(res / "table12_comparisons.csv")) == 1
     assert len(tables.read_csv(res / "table14_threshold_refit.csv")) == 1  # J1 uses frozen values
+
+
+def test_train_seed_option_defaults_to_config(monkeypatch, tmp_path):
+    import ctfindings.encoder as encoder
+    seen = []
+    monkeypatch.setattr(encoder, "train", lambda *a: seen.append(a[-1]) or {})
+    base = ["--work", str(tmp_path), "train", "--condition", "E1", "--language", "ja"]
+    assert cli.main(base) == 0
+    assert cli.main([*base, "--seed", "42", "123", "456"]) == 0
+    assert seen == [None, [42, 123, 456]]
+    settings = data.load_yaml(cli.ROOT / "configs" / "conditions.yaml")
+    assert settings["encoder_training"]["seeds"] == [42]
+    assert {c["runs"] for c in settings["conditions"].values()} == {1}
+
+
+def test_train_refits_removed_weights_when_added_seeds_change_the_rate(project, monkeypatch):
+    import ctfindings.encoder as encoder
+    config, work = project
+    best = {(1e-5, 42): .9, (2e-5, 42): .8, (3e-5, 42): .1,
+            (1e-5, 123): .1, (2e-5, 123): .9, (3e-5, 123): .1,
+            (1e-5, 456): .1, (2e-5, 456): .9, (3e-5, 456): .1}
+    trained, predicted = [], []
+
+    def fake_train(condition, language, lr, seed, training, dev450, folder, settings):
+        trained.append((lr, seed))
+        (folder / "checkpoint").mkdir(parents=True, exist_ok=True)
+        result = {"micro_f1": best[lr, seed], "epoch": 1,
+                  "probabilities": [[.5] * 18 for _ in dev450]}
+        data.write_json(folder / "selection.json", result)
+        return result
+
+    def fake_predict(work, checkpoint, *args):
+        assert checkpoint.exists()
+        predicted.append(checkpoint.parent.name)
+
+    monkeypatch.setattr(encoder, "train_one", fake_train)
+    monkeypatch.setattr(encoder, "predict_set", fake_predict)
+    assert encoder.train(work, config, "E1", "en")["learning_rate"] == 1e-5
+    assert encoder.train(work, config, "E1", "en", seeds=[42, 123, 456])["learning_rate"] == 2e-5
+    assert trained[3:].count((2e-5, 42)) == 1  # removed weights were trained again
+    assert "E1.en.lr2e-05.seed42" in predicted

@@ -70,12 +70,16 @@ def auroc(y, p):
 
 
 def average_precision(y, p):
+    """AP over distinct score thresholds; invariant to ordering within ties."""
     y, p = np.asarray(y), np.asarray(p, dtype=float)
-    if not int((y == 1).sum()):
+    positives = y.sum()
+    if not positives:
         return None
-    y = y[np.argsort(-p, kind="mergesort")]
-    precision = np.cumsum(y) / np.arange(1, len(y) + 1)
-    return float((precision * y).sum() / y.sum())
+    order = np.argsort(-p, kind="mergesort")
+    y, p = y[order], p[order]
+    last = np.r_[np.flatnonzero(np.diff(p) != 0), len(p) - 1]
+    tp = np.cumsum(y)[last]
+    return float((np.diff(np.r_[0.0, tp]) / positives * (tp / (last + 1))).sum())
 
 
 def calibration(y, p, bins=10):

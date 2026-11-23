@@ -55,3 +55,10 @@ def test_thresholds_rules():
     assert M.disagreement([np.array([[0, 1]]), np.array([[1, 1]])]) == [0.5]
     with pytest.raises(ValueError):
         optimize(y, p + 1)
+
+
+def test_average_precision_groups_ties():
+    assert M.average_precision([1, 0], [.5, .5]) == .5
+    assert M.average_precision([0, 1], [.5, .5]) == .5
+    assert M.average_precision([1, 0, 1, 0], [.9, .9, .1, .1]) == .5
+    assert M.average_precision([0, 0], [.9, .1]) is None

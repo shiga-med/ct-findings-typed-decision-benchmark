@@ -36,6 +36,8 @@ def main(argv=None):
     p.add_argument("--condition", required=True, choices=["E1", "E2"])
     p.add_argument("--language", required=True, choices=["en", "ja"])
     p.add_argument("--fraction", type=int, choices=[2, 10, 100])
+    p.add_argument("--seed", type=int, nargs="+", default=None,
+                   help="training seeds (default 42; the paper used 42 123 456)")
     p = sub.add_parser("predict", help="run one model condition on one case set")
     p.add_argument("--condition", required=True)
     p.add_argument("--language", required=True, choices=["en", "ja"])
@@ -77,7 +79,8 @@ def run(args):
         return prepare(args.data, args.work, args.config)
     if args.command == "train":
         from .encoder import train
-        return train(args.work, args.config, args.condition, args.language, args.fraction)
+        return train(args.work, args.config, args.condition, args.language, args.fraction,
+                     args.seed)
     if args.command == "predict":
         from .runner import predict
         return predict(args.work, args.config, args.condition, args.language, args.text, args.set,

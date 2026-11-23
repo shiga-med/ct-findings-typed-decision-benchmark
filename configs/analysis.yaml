@@ -7,8 +7,7 @@ calibration:
   ece_bins: 10
   log_loss_epsilon: 1.0e-15
 training_fractions:
-  denominators: [2, 10, 100]   # nested within each seed: 1/100 in 1/10 in 1/2
-  seeds: [42, 123, 456]
+  denominators: [2, 10, 100]   # nested within each training seed: 1/100 in 1/10 in 1/2
 
 # Main internal comparisons (Table 12): [text, condition A, condition B]. "E1-frac10" = E1 trained on 1/10.
 comparisons:
@@ -23,3 +22,7 @@ comparisons:
   - [en, T1, L3]
   - [ja_Checked, T1, L3]
   - [ja_Checked, E1-frac10, J1]
+  - [en, J1, GD1]
+  - [ja_Checked, J1, GD1]
+  - [en, D1, GD1]
+  - [ja_Checked, D1, GD1]

@@ -1,6 +1,6 @@
 [project]
 name = "ctfindings"
-version = "1.0.0"
+version = "1.1.0"
 description = "Chest CT report finding classification: encoders, generative LLMs and typed decisions"
 readme = "README.md"
 license = "MIT"
@@ -13,6 +13,7 @@ dependencies = [
 
 [dependency-groups]
 api = [
+    "google-genai==3.6.1",
     "openai==3.26.1",
     "typesafe-sdk==0.7.2",
 ]

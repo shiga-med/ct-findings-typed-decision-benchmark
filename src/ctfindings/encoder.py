@@ -2,7 +2,8 @@
 
 For each learning rate and seed: train up to 5 epochs; after each epoch, score the 450
 development cases at 0.5 and keep the earliest best epoch. The learning rate with the
-highest mean over the 3 seeds is chosen (ties: lower rate). Per seed, thresholds come from
+highest mean over the requested seeds is chosen (ties: lower rate; default seed 42 only,
+the paper used seeds 42, 123 and 456). Per seed, thresholds come from
 the development probabilities of the chosen epoch. Requires the `train` group and a GPU.
 """
 
@@ -168,10 +169,11 @@ def train_one(condition, language, lr, seed, training, dev450, folder, settings)
     return best
 
 
-def train(work, config, name, language, fraction=None):
+def train(work, config, name, language, fraction=None, seeds=None):
     """Train all learning rates x seeds, choose, set thresholds and predict test sets."""
     conditions = load_yaml(Path(config) / "conditions.yaml")
     settings, condition = conditions["encoder_training"], conditions["conditions"][name]
+    seeds = list(seeds or settings["seeds"])
     tag = name if fraction is None else f"{name}-frac{fraction}"
     cases = load_cases(work)
     dev450 = cohort(work, "dev450")
@@ -180,21 +182,27 @@ def train(work, config, name, language, fraction=None):
     if fraction is not None:
         analysis = load_yaml(Path(config) / "analysis.yaml")["training_fractions"]
         subsets = fraction_subsets({c["case_id"]: c["labels"] for c in pool},
-                                   analysis["denominators"], analysis["seeds"])
+                                   analysis["denominators"], seeds)
+    def fit(lr, seed):
+        folder = Path(work) / "models" / f"{tag}.{language}.lr{lr:g}.seed{seed}"
+        keep = set(subsets[seed][fraction]) if subsets else None
+        training = [c for c in pool if keep is None or c["case_id"] in keep]
+        return train_one(condition, language, lr, seed, training, dev450, folder, settings)
+
     runs = {}
     for lr in settings["learning_rates"]:
-        for seed in settings["seeds"]:
-            folder = Path(work) / "models" / f"{tag}.{language}.lr{lr:g}.seed{seed}"
-            if (folder / "selection.json").exists():
-                runs[lr, seed] = json.loads((folder / "selection.json").read_text())
-                continue
-            keep = set(subsets[seed][fraction]) if subsets else None
-            training = [c for c in pool if keep is None or c["case_id"] in keep]
-            runs[lr, seed] = train_one(condition, language, lr, seed, training, dev450, folder,
-                                       settings)
-    seeds = settings["seeds"]
+        for seed in seeds:
+            selection = (Path(work) / "models" / f"{tag}.{language}.lr{lr:g}.seed{seed}"
+                         / "selection.json")
+            runs[lr, seed] = (json.loads(selection.read_text()) if selection.exists()
+                              else fit(lr, seed))
     chosen = max(settings["learning_rates"],
                  key=lambda lr: (np.mean([runs[lr, s]["micro_f1"] for s in seeds]), -lr))
+    # A previous run with other seeds may have chosen another rate and removed these weights.
+    for seed in seeds:
+        folder = Path(work) / "models" / f"{tag}.{language}.lr{chosen:g}.seed{seed}"
+        if not (folder / "checkpoint").exists():
+            runs[chosen, seed] = fit(chosen, seed)
     y = np.asarray([c["labels"] for c in dev450])
     texts = ["en"] if language == "en" else ["ja_MT", "ja_Revised", "ja_Checked"]
     for seed in seeds:
@@ -214,7 +222,7 @@ def train(work, config, name, language, fraction=None):
             folder = Path(work) / "models" / f"{tag}.{language}.lr{lr:g}.seed{seed}"
             if lr != chosen and (folder / "checkpoint").exists():
                 shutil.rmtree(folder / "checkpoint")
-    return {"condition": tag, "language": language, "learning_rate": chosen}
+    return {"condition": tag, "language": language, "learning_rate": chosen, "seeds": seeds}
 
 
 def predict_set(work, checkpoint, tag, language, text, set_name, seed, settings):
